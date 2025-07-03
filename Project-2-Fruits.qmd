@@ -1,0 +1,63 @@
+---
+title: "Project 2 - Fruits"
+format: html
+editor: visual
+---
+
+## Querying an API
+
+For this project, we will be looking at the data provided at [fruitvice.com](fruitvice.com). This API provides information on different fruits, such as scientific names and nutritional values. 
+
+```{r}
+library(httr)
+library(jsonlite)
+library(tidyverse)
+```
+
+
+```{r}
+result <- httr::GET("fruityvice.com/api/fruit/all")
+parsed <- as_tibble(fromJSON(rawToChar(result$content)))
+parsed
+```
+
+
+```{r}
+# Create function to query api
+get_api <- function(fruit = "all", Family = NA, Order = NA, Genus = NA, Nutrition = TRUE) {
+  
+  #Create the url to use httr::GET
+  base_url <- "fruityvice.com/api/fruit/"
+  full_url <- paste0(base_url, fruit)
+  result <- httr::GET(full_url)
+  parsed <- as_tibble(fromJSON(rawToChar(result$content)))
+  
+  if (fruit == "all") {
+    nutr_info <- as_tibble(parsed$nutritions) |> 
+      mutate(name = parsed$name) |>
+      select(name, everything())
+    print(nutr_info)
+  } else {
+    print(parsed)
+  }
+  
+  #Create conditions to filter by scientific name if specified
+  if (!is.na(Family)) {
+    fam_filter <- parsed |> filter(family == Family)
+    print(fam_filter)
+  }
+  if (!is.na(Order)) {
+    ord_filter <- parsed |> filter(order == Order)
+    print(ord_filter)
+  }
+  if (!is.na(Genus)) {
+    gen_filter <- parsed |> filter(genus == Genus)
+    print(gen_filter)
+  }
+}
+```
+
+```{r}
+get_api("strawberry")
+```
+
