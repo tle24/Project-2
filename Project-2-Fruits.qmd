@@ -8,7 +8,7 @@ editor: visual
 
 For this project, we will be looking at the data provided at [fruitvice.com](fruitvice.com). This API provides information on different fruits, such as scientific names and nutritional values. 
 
-```{r}
+```{r, warning=FALSE}
 library(httr)
 library(jsonlite)
 library(tidyverse)
@@ -18,13 +18,16 @@ library(tidyverse)
 ```{r}
 result <- httr::GET("fruityvice.com/api/fruit/all")
 parsed <- as_tibble(fromJSON(rawToChar(result$content)))
-parsed
+as_tibble(parsed$nutritions) |> 
+    mutate(name = parsed$name) |>
+    select(name, everything())
 ```
 
+The function below will be able to retrieve the scientific names and nutritional data for the different types of fruits.
 
 ```{r}
 # Create function to query api
-get_api <- function(fruit = "all", Family = NA, Order = NA, Genus = NA, Nutrition = TRUE) {
+get_api <- function(fruit = "all", nutrition = "all") {
   
   #Create the url to use httr::GET
   base_url <- "fruityvice.com/api/fruit/"
@@ -32,32 +35,96 @@ get_api <- function(fruit = "all", Family = NA, Order = NA, Genus = NA, Nutritio
   result <- httr::GET(full_url)
   parsed <- as_tibble(fromJSON(rawToChar(result$content)))
   
+  #Define which nutritional data to return
+  switch(nutrition,
+         "all" = nut <- as_tibble(parsed$nutritions),
+         "calories" = nut <- as_tibble(parsed$nutritions$calories),
+         "fat" = nut <- as_tibble(parsed$nutritions$fat),
+         "sugar" = nut <- as_tibble(parsed$nutritions$sugar),
+         "carbohydrates" = nut <- as_tibble(parsed$nutritions$carbohydrates),
+         "protein" = nut <- as_tibble(parsed$nutritions$protein))  
+  
+  #Define to retrieve data of all fruits or specific fruits
   if (fruit == "all") {
-    nutr_info <- as_tibble(parsed$nutritions) |> 
-      mutate(name = parsed$name) |>
-      select(name, everything())
-    print(nutr_info)
+    nut |> 
+      mutate(Name = parsed$name) |>
+      mutate(Family = parsed$family) |>
+      mutate(Genus = parsed$genus) |>
+      mutate(Order = parsed$order) |>
+      select(Name, Family, Genus, Order, everything())
   } else {
-    print(parsed)
+    nut |> 
+      mutate(Name = parsed$name[1]) |>
+      mutate(Family = parsed$family[1]) |>
+      mutate(Genus = parsed$genus[1]) |>
+      mutate(Order = parsed$order[1]) |>
+      select(Name, Family, Genus, Order, everything())
   }
   
-  #Create conditions to filter by scientific name if specified
-  if (!is.na(Family)) {
-    fam_filter <- parsed |> filter(family == Family)
-    print(fam_filter)
-  }
-  if (!is.na(Order)) {
-    ord_filter <- parsed |> filter(order == Order)
-    print(ord_filter)
-  }
-  if (!is.na(Genus)) {
-    gen_filter <- parsed |> filter(genus == Genus)
-    print(gen_filter)
-  }
+
 }
 ```
 
 ```{r}
-get_api("strawberry")
+get_api(fruit = "all")
 ```
+
+## Summarize the Data
+
+Now that we are able to query some data through the function, we can summarize the data is different ways.
+
+### Categorical Summaries
+
+Contingency tables are summarize the relationship between categorical data. In this case, contingency tables can be used to look at the relationship between our fruits and their scientific names.
+
+```{r}
+dat <- get_api()
+```
+
+A one-way contingency table can show how many of the fruits there are in the same family.
+
+```{r}
+dat |>
+  group_by(Family) |>
+  summarise(count = n())
+```
+
+This next table is a two-way contingency table showing how many of our fruits are of a specific genus and order. 
+
+```{r}
+dat |>
+  group_by(Genus, Order) |>
+  summarise(count = n())
+```
+
+### Numerical Summaries
+
+The numerical data from the data set is the nutritional values of each fruit. 
+
+We can first see the measures of center of each of the nutritional value through the mean and the median.
+
+```{r}
+dat |>
+  group_by(Family) |>
+  summarize(across(where(is.numeric), 
+                   list("mean" = ~ round(mean(.x, na.rm = TRUE), 2), 
+                        "median" = ~ round(median(.x, na.rm = TRUE), 2)), 
+                   .names = "{.fn}_{.col}"))
+```
+
+The measure of spread of the data set is given by the standard deviation and the IQR (Interquartile Range).
+
+```{r}
+dat |>
+  group_by(Family) |>
+  summarize(across(where(is.numeric), 
+                   list("sd" = ~ round(sd(.x, na.rm = TRUE), 2), 
+                        "IQR" = ~ round(IQR(.x, na.rm = TRUE), 2)), 
+                   .names = "{.fn}_{.col}")) |>
+  drop_na()
+```
+
+### Plots
+
+
 
