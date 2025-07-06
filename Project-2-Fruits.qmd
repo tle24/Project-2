@@ -9,19 +9,13 @@ editor: visual
 For this project, we will be looking at the data provided at [fruitvice.com](fruitvice.com). This API provides information on different fruits, such as scientific names and nutritional values. 
 
 ```{r, warning=FALSE}
+#Library some packages
 library(httr)
 library(jsonlite)
 library(tidyverse)
+library(ggplot2)
 ```
 
-
-```{r}
-result <- httr::GET("fruityvice.com/api/fruit/all")
-parsed <- as_tibble(fromJSON(rawToChar(result$content)))
-as_tibble(parsed$nutritions) |> 
-    mutate(name = parsed$name) |>
-    select(name, everything())
-```
 
 The function below will be able to retrieve the scientific names and nutritional data for the different types of fruits.
 
@@ -60,14 +54,21 @@ get_api <- function(fruit = "all", nutrition = "all") {
       mutate(Order = parsed$order[1]) |>
       select(Name, Family, Genus, Order, everything())
   }
-  
-
 }
 ```
 
+Testing some querying:
+
 ```{r}
-get_api(fruit = "all")
+get_api(fruit = "all", nutrition = "all")
 ```
+```{r}
+get_api("peach")
+```
+```{r}
+get_api(nutrition = "protein")
+```
+
 
 ## Summarize the Data
 
@@ -125,6 +126,66 @@ dat |>
 ```
 
 ### Plots
+
+With the data queried from the API, plots can be created to visually display the information. This first plot is a column graph dealing with the categorical data and shows the count of some of the fruit families. 
+
+```{r}
+#Create data to plot
+barplot_dat <- dat |> 
+  group_by(Family) |>
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  head(10)
+
+#Create plot for count of family of fruits
+ggplot(data = barplot_dat, aes(x = Family, y = count, fill = Family)) +
+  geom_col() +
+  scale_fill_viridis_d() +
+  labs(y = "Count", title = "Bar Plot of Top 10 Families of Fruits") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Another way to represent the categorical data is through a pie chart. This pie chart also visually shows how many fruits are in each family. 
+
+```{r}
+#Create data to plot
+pie_dat <- dat |>
+  group_by(Family) |>
+  summarise(count = n())
+
+#Create pie chart
+ggplot(pie_dat, aes(x = "", y = count, fill = Family)) +
+  geom_col(color = "black") +
+  coord_polar(theta = "y") +
+  labs(x = "", y = "", title = "Pie Chart of the Families of Fruits")
+```
+
+For the numerical data like the nutritional values of the fruits, there are different plots that can be created to visually represent them. A histogram of the amount of calories in all the fruits can be made to show the spread of the calories.
+
+```{r}
+#Create a histogram of calories
+ggplot(dat, aes(x = calories, color = "calories")) +
+  geom_histogram(binwidth = 15, fill = "red", color = "black") +
+  labs(x = "Calories", y = "Count", title = "Histogram of the Calories in Fruits")
+```
+
+From the data, a scatter plot can be created to compare the nutritional values of all the fruits. In this case, the sugar content is being compared to the amount of carbohydrates of the fruits. The data points are also grouped and color-coded by the amount of protein of the fruits. 
+
+```{r}
+#Create data to plot
+scatter_dat <- dat |>
+  mutate(group = if_else(protein > 2, "High", 
+                         if_else(sugar < 1, "Low", "Medium")))
+
+#Create a scatter plot of sugar content compared to amount of carbohydrates in fruits grouped by amount of protein
+ggplot(scatter_dat, aes(x = sugar, y = carbohydrates, color = group)) +
+  geom_point() +
+  geom_text(aes(label = Name, vjust = 1)) +
+  labs(x = "Sugar Content (grams)", y = "Carbohydrates (grams)", title = "Scatter plot of Sugar Content compared to Carbohydrates") +
+  scale_color_discrete(name = "Protein Levels")
+```
+
+
 
 
 
