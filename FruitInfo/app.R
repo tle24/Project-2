@@ -1,11 +1,13 @@
 library(shiny)
 library(shinydashboard)
+library(dplyr)
 
 # Define UI for application
 ui <- dashboardPage(
 
     # Application title
    dashboardHeader(title = "Fruit Information"),
+   
     
     #Create sidebar tabs
     dashboardSidebar(
@@ -17,7 +19,7 @@ ui <- dashboardPage(
     ),
    
    #Create tab body
-   dashboardBody(
+   dashboardBody(fluidPage(
      tabItems(
        
        #Creating the about page
@@ -46,14 +48,15 @@ ui <- dashboardPage(
                              "Tangerine", "Pitahaya", "Lime", "Pomegranate",
                              "Dragonfruit", "Grape", "Morus", "Feijoa", "Avocado",
                              "Kiwifruit", "Cranberry", "Cherry", "Peach", 
-                             "Jackfruit", "Horned Melon", "Hazelnut", "Pomelo",
-                             "Mangosteen", "Pumpkin", "Japanese Persimmon", 
-                             "Papaya", "Anona", "Ceylon Gooseberry")
+                             "Jackfruit", "Hazelnut", "Pomelo", "Mangosteen", 
+                             "Pumpkin", "Papaya", "Anona")
                              ),
                  selectInput(inputId = "nutrition",
                              label = "Choose nutritional data to display:",
                              choices = c("all", "calories", "fat", "sugar", 
                              "carbohydrates", "protein")),
+                 downloadButton(outputId = "downloadfile",
+                                label = "Save file"),
                  tableOutput("data")
                )),
        
@@ -61,16 +64,94 @@ ui <- dashboardPage(
        tabItem(tabName = "explore",
                titlePanel("Data Exploration"),
                mainPanel(
-                 
+                 fluidRow(
+                   navbarPage("Summaries",
+                              
+                              #Create contingency table tab
+                              tabPanel("Categorical",
+                                       p("Contingency tables can be created to represent the categorical data showing the count of data in the chosen group."),
+                                       selectInput(inputId = "var1", 
+                                                   label = "Choose the first variable:",
+                                                   choices = c("Name", "Family", "Genus", "Order")),
+                                       selectInput(inputId = "var2",
+                                                   label = "Choose the second variable:",
+                                                   choices = c("Name", "Family", "Genus", "Order")),
+                                       tableOutput("conttable")
+                                       ),
+                              
+                              #Create numerical summaries tab
+                              tabPanel("Numerical",
+                                       p("For numerical values, data can be summarized across different measures. In this case, the measure of center can be calculated through the mean or median, and the measure of spread can be calculated through the standard deviation or interquartile range (IQR) for the different family groups."),
+                                       radioButtons(inputId = "summ", 
+                                                    label = "Choose the type of summary:",
+                                                    choices = c("Mean", "Median", "Standard deviation", "IQR")),
+                                       tableOutput("numsum")
+                                       ),
+                              
+                              #Create plots tab
+                              tabPanel("Graphical",
+                                       tabsetPanel(
+                                         
+                                         #Create bar graph
+                                         tabPanel("Bar Graph"),
+                                         
+                                         #Create Pie Chart
+                                         tabPanel("Pie Chart"),
+                                         
+                                         #Create Histogram
+                                         tabPanel("Histogram"),
+                                         
+                                         #Create Scatter Plot
+                                         tabPanel("Scatter Plot")
+                                       )))
+                 )
                ))
-     )
+     )))
    )
-)
 
 # Define server logic
-server <- function(input, output) {
+server <- function(input, output, session) {
+  
+  #Retrieve data
   output$data <- renderTable(
     get_api(fruit = input$fruit, nutrition = input$nutrition)
+  )
+  
+  #Download data
+  output$downloadfile <- downloadHandler(
+    filename = function() {
+      paste0(input$fruit, "-nutri-", input$nutrition, Sys.Date(), ".csv")
+    },
+    content = function(file) {
+      write.csv(filename, file, row.names = FALSE)
+    }
+  )
+  
+  #Contingency table
+  output$conttable <- renderTable(
+    table(dat[[input$var1]], dat[[input$var2]])
+  )
+  
+  #Numerical summary
+  output$numsum <- renderTable(
+    if (input$summ == "Mean") {
+      dat |> group_by(Family) |> summarize(across(where(is.numeric), 
+                         list("mean" = ~ round(mean(.x, na.rm = TRUE), 2)),
+                         .names = "{.fn}_{.col}"))
+    } else if (input$summ == "Median") {
+      dat |> group_by(Family) |> summarize(across(where(is.numeric), 
+                              list("median" = ~ round(median(.x, na.rm = TRUE), 2)),
+                              .names = "{.fn}_{.col}"))
+    } else if (input$summ == "Standard deviation") {
+      dat |> group_by(Family) |> summarize(across(where(is.numeric), 
+                              list("sd" = ~ round(sd(.x, na.rm = TRUE), 2), 
+                              .names = "sd_{.col}")) |> drop_na()
+      )
+    } else if (input$summ == "IQR") {
+      dat |> group_by(Family) |> summarize(across(where(is.numeric), 
+                              list("IQR" = ~ round(IQR(.x, na.rm = TRUE), 2)), 
+                              .names = "{.fn}_{.col}"))
+    }
   )
 }
 
