@@ -17,4 +17,4 @@ lapply(c("httr", "jsonlite", "tidyverse", "ggplot2", "shiny", "shinydashboard", 
 
 ## Code to run app:
 
-shiny::GitHub("Project-2", "tle24")
+shiny::runGitHub("Project-2", "tle24", subdir = "FruitInfo/app.R")
